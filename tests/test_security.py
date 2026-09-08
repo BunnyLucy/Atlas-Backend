@@ -1,7 +1,7 @@
 import uuid
 
 from atlas_api.config import Settings
-from atlas_api.security import access_token, decode_access_token, hash_password, token_digest, verify_password
+from atlas_api.security import access_token, decode_access_token, hash_password, oauth_state, token_digest, verify_oauth_state, verify_password
 
 
 def settings() -> Settings:
@@ -27,3 +27,6 @@ def test_opaque_tokens_are_only_stored_as_digests() -> None:
     assert token_digest("secret") != "secret"
     assert len(token_digest("secret")) == 64
 
+
+def test_oauth_state_round_trip() -> None:
+    verify_oauth_state(settings(), oauth_state(settings()))

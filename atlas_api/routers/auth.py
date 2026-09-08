@@ -1,7 +1,11 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Request, Response
+import httpx
+import jwt
+from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.responses import RedirectResponse
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,9 +13,9 @@ from ..config import Settings, get_settings
 from ..db import get_session
 from ..dependencies import current_user
 from ..errors import AtlasError
-from ..models import AuthToken, OutboxEvent, RefreshSession, User, UserProfile
+from ..models import AuthToken, OAuthAccount, OutboxEvent, RefreshSession, User, UserProfile
 from ..schemas import ChangePasswordInput, ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput, TokenInput
-from ..security import access_token, hash_password, opaque_token, token_digest, verify_password
+from ..security import access_token, hash_password, oauth_state, opaque_token, token_digest, verify_oauth_state, verify_password
 from ..serialization import user_payload
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -84,6 +88,8 @@ async def login(body: LoginInput, response: Response, session: AsyncSession = De
     user = await session.scalar(select(User).where(or_(User.email == identifier, User.username == identifier)))
     if not user or not user.password_hash or user.disabled_at or not verify_password(body.password, user.password_hash):
         raise AtlasError(401, "LOGIN_FAILED", "账号或密码不正确")
+    if not user.email_verified_at:
+        raise AtlasError(403, "EMAIL_NOT_VERIFIED", "请先验证邮箱")
     return await issue_session(session, response, settings, user)
 
 
@@ -166,3 +172,81 @@ async def change_password(body: ChangePasswordInput, user: User = Depends(curren
 async def me(user: User = Depends(current_user)) -> dict:
     return {"user": user_payload(user)}
 
+
+@router.get("/github/start")
+async def github_start(settings: Settings = Depends(get_settings)) -> dict:
+    if not settings.github_client_id or not settings.github_callback_url:
+        raise AtlasError(503, "GITHUB_OAUTH_DISABLED", "GitHub 登录尚未配置")
+    query = urlencode({
+        "client_id": settings.github_client_id,
+        "redirect_uri": str(settings.github_callback_url),
+        "scope": "read:user user:email",
+        "state": oauth_state(settings),
+    })
+    return {"authorizationURL": f"https://github.com/login/oauth/authorize?{query}"}
+
+
+@router.get("/github/callback")
+async def github_callback(
+    code: str = Query(min_length=1),
+    state: str = Query(min_length=1),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings),
+) -> RedirectResponse:
+    if not settings.github_client_id or not settings.github_client_secret or not settings.github_callback_url:
+        raise AtlasError(503, "GITHUB_OAUTH_DISABLED", "GitHub 登录尚未配置")
+    try:
+        verify_oauth_state(settings, state)
+    except jwt.PyJWTError:
+        raise AtlasError(400, "OAUTH_STATE_INVALID", "GitHub 登录状态无效或已过期") from None
+    async with httpx.AsyncClient(timeout=10) as client:
+        token_response = await client.post(
+            "https://github.com/login/oauth/access_token",
+            headers={"Accept": "application/json"},
+            data={
+                "client_id": settings.github_client_id,
+                "client_secret": settings.github_client_secret.get_secret_value(),
+                "code": code,
+                "redirect_uri": str(settings.github_callback_url),
+            },
+        )
+        token_response.raise_for_status()
+        github_token = token_response.json().get("access_token")
+        if not github_token:
+            raise AtlasError(401, "GITHUB_OAUTH_FAILED", "GitHub 登录失败")
+        headers = {"Authorization": f"Bearer {github_token}", "Accept": "application/vnd.github+json"}
+        profile_response = await client.get("https://api.github.com/user", headers=headers)
+        profile_response.raise_for_status()
+        profile = profile_response.json()
+        email = profile.get("email")
+        if not email:
+            emails_response = await client.get("https://api.github.com/user/emails", headers=headers)
+            emails_response.raise_for_status()
+            emails = emails_response.json()
+            selected = next((item for item in emails if item.get("primary") and item.get("verified")), None)
+            email = selected.get("email") if selected else None
+    github_id = str(profile.get("id") or "")
+    if not github_id or not email:
+        raise AtlasError(422, "GITHUB_EMAIL_REQUIRED", "GitHub 账号需要一个已验证的公开或主邮箱")
+    account = await session.get(OAuthAccount, ("github", github_id))
+    user = await session.get(User, account.user_id) if account else None
+    if not user:
+        user = await session.scalar(select(User).where(User.email == email.lower()))
+    if not user:
+        base = "".join(ch for ch in str(profile.get("login") or "github-user").lower() if ch.isalnum() or ch in "_-")[:70] or "github-user"
+        username = base
+        suffix = 1
+        while await session.scalar(select(User.id).where(User.username == username)):
+            suffix += 1
+            username = f"{base}-{suffix}"
+        user = User(username=username, email=email.lower(), password_hash=None, email_verified_at=datetime.now(UTC))
+        session.add(user)
+        await session.flush()
+        session.add(UserProfile(user_id=user.id, display_name=str(profile.get("name") or profile.get("login") or username)[:120], handle=username, avatar_url=profile.get("avatar_url")))
+    elif not user.email_verified_at:
+        user.email_verified_at = datetime.now(UTC)
+    if not account:
+        session.add(OAuthAccount(provider="github", provider_account_id=github_id, user_id=user.id))
+    redirect = RedirectResponse(f"{str(settings.web_origin).rstrip('/')}?atlasOAuth=success", status_code=302)
+    await issue_session(session, redirect, settings, user)
+    return redirect
