@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..dependencies import WorldAccess, current_user, world_access
 from ..errors import AtlasError
-from ..models import AuditEvent, CanvasDocument, CanvasRevision, User, WikiRevision, World, WorldMembership, WorldObject, WorldRole
-from ..schemas import CanvasPut, WikiPut, WorldCreate, WorldUpdate
+from ..models import AuditEvent, CanvasDocument, CanvasRevision, User, WikiRevision, World, WorldMap, WorldMembership, WorldObject, WorldRole
+from ..schemas import CanvasPut, MapPut, WikiPut, WorldCreate, WorldUpdate
 from ..serialization import world_payload
 
 router = APIRouter(prefix="/worlds", tags=["worlds"])
@@ -87,6 +87,31 @@ async def get_canvas(access: WorldAccess = Depends(world_access), session: Async
     if not record:
         return {"document": {"objects": [], "relations": []}, "schemaVersion": 1, "revision": 0, "updatedAt": None}
     return {"document": record.document, "schemaVersion": record.schema_version, "revision": record.revision, "updatedAt": record.updated_at.isoformat()}
+
+
+@router.get("/{world_id}/map")
+async def get_map(access: WorldAccess = Depends(world_access), session: AsyncSession = Depends(get_session)) -> dict:
+    record = await session.get(WorldMap, access.world.id)
+    if not record:
+        return {"archive": {}, "schemaVersion": 1, "revision": 0, "updatedAt": None}
+    return {"archive": record.archive, "schemaVersion": record.schema_version, "revision": record.revision, "updatedAt": record.updated_at.isoformat()}
+
+
+@router.put("/{world_id}/map")
+async def put_map(body: MapPut, access: WorldAccess = Depends(world_access), session: AsyncSession = Depends(get_session)) -> dict:
+    access.require_write()
+    record = await session.scalar(select(WorldMap).where(WorldMap.world_id == access.world.id).with_for_update())
+    current = record.revision if record else 0
+    if current != body.expected_revision:
+        raise AtlasError(409, "REVISION_CONFLICT", "地图已在其他设备更新", {"currentRevision": current})
+    if record:
+        record.archive, record.schema_version, record.revision, record.updated_by = body.archive, body.schema_version, current + 1, access.user.id
+    else:
+        record = WorldMap(world_id=access.world.id, archive=body.archive, schema_version=body.schema_version, revision=1, updated_by=access.user.id)
+        session.add(record)
+    session.add(AuditEvent(actor_id=access.user.id, world_id=access.world.id, action="map.saved", target_type="map", target_id=access.world.id, payload={"revision": current + 1}))
+    await session.commit()
+    return {"archive": record.archive, "schemaVersion": record.schema_version, "revision": record.revision, "updatedAt": record.updated_at.isoformat()}
 
 
 @router.put("/{world_id}/canvas")

@@ -57,6 +57,12 @@ class CanvasPut(BaseModel):
     document: dict[str, Any]
 
 
+class MapPut(BaseModel):
+    expected_revision: int = Field(ge=0)
+    schema_version: int = Field(default=1, ge=1)
+    archive: dict[str, Any]
+
+
 class WikiPut(BaseModel):
     expected_revision: int = Field(ge=0)
     kind: str = Field(min_length=1, max_length=40)
