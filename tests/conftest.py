@@ -10,7 +10,8 @@ from atlas_api.main import app
 async def clean_database():
     async with engine.begin() as connection:
         await connection.execute(text(
-            "TRUNCATE outbox_events, audit_events, notifications, contribution_events, "
+            "TRUNCATE asset_references, asset_versions, pending_uploads, assets, forum_posts, "
+            "forum_topics, forum_spaces, outbox_events, audit_events, notifications, contribution_events, "
             "submission_reviews, submission_confirmations, submissions, task_participants, "
             "world_tasks, character_profiles, wiki_revisions, world_objects, canvas_revisions, "
             "canvas_documents, world_memberships, worlds, "

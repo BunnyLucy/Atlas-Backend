@@ -32,6 +32,20 @@ services:
     volumes:
       - .:/app
 
+  worker:
+    build: .
+    environment:
+      ATLAS_ENV: development
+      ATLAS_DATABASE_URL: postgresql+asyncpg://atlas:atlas@postgres:5432/atlas_python
+      ATLAS_JWT_SECRET: local-development-secret-change-before-production
+      ATLAS_WEB_ORIGIN: http://127.0.0.1:5173
+      ATLAS_COOKIE_SECURE: "false"
+    command: ["sh", "-c", "alembic upgrade head && python -m atlas_api.worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
 volumes:
   atlas_python_pg:
-

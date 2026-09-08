@@ -22,6 +22,17 @@ class Settings(BaseSettings):
     github_client_id: str | None = None
     github_client_secret: SecretStr | None = None
     github_callback_url: AnyHttpUrl | None = None
+    cos_secret_id: str | None = None
+    cos_secret_key: SecretStr | None = None
+    cos_region: str | None = None
+    cos_bucket: str | None = None
+    cos_public_base_url: AnyHttpUrl | None = None
+    cos_verify_upload: bool = True
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = None
+    email_from: str | None = None
 
     @model_validator(mode="after")
     def validate_production(self) -> "Settings":
@@ -33,4 +44,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
-

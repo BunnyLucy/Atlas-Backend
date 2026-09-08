@@ -153,6 +153,61 @@ class ReviewDecision(BaseModel):
     is_seasonal: bool = False
 
 
+class ForumSpaceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=4000)
+    position: int = Field(default=0, ge=0, le=10000)
+
+
+class TopicCreate(BaseModel):
+    space_id: str
+    title: str = Field(min_length=1, max_length=240)
+    body: str = Field(min_length=1, max_length=100000)
+
+
+class TopicUpdate(BaseModel):
+    expected_revision: int = Field(ge=1)
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    body: str | None = Field(default=None, min_length=1, max_length=100000)
+    is_pinned: bool | None = None
+    is_locked: bool | None = None
+
+
+class PostCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=100000)
+
+
+class PostUpdate(BaseModel):
+    expected_revision: int = Field(ge=1)
+    body: str = Field(min_length=1, max_length=100000)
+
+
+class UploadSignInput(BaseModel):
+    filename: str = Field(min_length=1, max_length=240)
+    content_type: str = Field(min_length=1, max_length=160)
+    byte_size: int = Field(ge=1, le=100 * 1024 * 1024)
+
+
+class AssetCompleteInput(UploadSignInput):
+    upload_id: str
+    object_key: str
+    checksum: str | None = Field(default=None, max_length=128)
+    name: str = Field(min_length=1, max_length=240)
+    category: str = Field(default="other", max_length=80)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AssetVersionCompleteInput(UploadSignInput):
+    upload_id: str
+    object_key: str
+    checksum: str | None = Field(default=None, max_length=128)
+
+
+class AssetReferenceInput(BaseModel):
+    target_type: str = Field(min_length=1, max_length=80)
+    target_id: str = Field(min_length=1, max_length=160)
+
+
 class SubmissionUpdate(BaseModel):
     expected_revision: int = Field(ge=1)
     title: str | None = Field(default=None, min_length=1, max_length=200)

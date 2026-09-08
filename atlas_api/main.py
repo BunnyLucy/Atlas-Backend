@@ -10,7 +10,7 @@ from sqlalchemy import text
 from .config import get_settings
 from .db import engine
 from .errors import AtlasError
-from .routers import auth, memberships, notifications, workflow, worlds
+from .routers import assets, auth, forums, memberships, notifications, workflow, worlds
 
 settings = get_settings()
 log = structlog.get_logger()
@@ -51,3 +51,5 @@ app.include_router(worlds.router, prefix="/api/v1")
 app.include_router(memberships.router, prefix="/api/v1")
 app.include_router(workflow.router, prefix="/api/v1")
 app.include_router(notifications.router, prefix="/api/v1")
+app.include_router(forums.router, prefix="/api/v1")
+app.include_router(assets.router, prefix="/api/v1")
