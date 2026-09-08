@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: atlas_test
+          POSTGRES_USER: atlas
+          POSTGRES_PASSWORD: atlas
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas -d atlas_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      ATLAS_ENV: test
+      ATLAS_DATABASE_URL: postgresql+asyncpg://atlas:atlas@127.0.0.1:5432/atlas_test
+      ATLAS_JWT_SECRET: github-actions-test-secret-at-least-32-characters
+      ATLAS_WEB_ORIGIN: http://127.0.0.1:5173
+      ATLAS_COOKIE_SECURE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -e '.[test]'
+      - run: alembic upgrade head
+      - run: pytest -q
+
