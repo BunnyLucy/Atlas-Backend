@@ -63,3 +63,28 @@ class WikiPut(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     payload: dict[str, Any]
 
+
+class InvitationCreate(BaseModel):
+    identifier: str = Field(min_length=1, max_length=320)
+    role: str = Field(default="participant", pattern="^(manager|participant|observer)$")
+
+
+class InvitationRespond(BaseModel):
+    decision: str = Field(pattern="^(accepted|declined)$")
+
+
+class JoinRequestCreate(BaseModel):
+    message: str = Field(default="", max_length=2000)
+    role: str = Field(default="participant", pattern="^(participant|observer)$")
+
+
+class JoinRequestReview(BaseModel):
+    decision: str = Field(pattern="^(accepted|declined)$")
+
+
+class MembershipRoleUpdate(BaseModel):
+    role: str = Field(pattern="^(manager|participant|observer)$")
+
+
+class OwnershipTransfer(BaseModel):
+    new_owner_id: str

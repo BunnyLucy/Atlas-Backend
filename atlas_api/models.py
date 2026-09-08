@@ -103,6 +103,38 @@ class WorldMembership(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class WorldInvitation(Base):
+    __tablename__ = "world_invitations"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    world_id: Mapped[str] = mapped_column(ForeignKey("worlds.id", ondelete="CASCADE"), index=True)
+    inviter_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    invitee_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[WorldRole] = mapped_column(Enum(WorldRole, name="world_role"), default=WorldRole.participant)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        Index("world_invitation_pending_unique", "world_id", "invitee_id", unique=True, postgresql_where=(status == "pending")),
+    )
+
+
+class WorldJoinRequest(Base):
+    __tablename__ = "world_join_requests"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    world_id: Mapped[str] = mapped_column(ForeignKey("worlds.id", ondelete="CASCADE"), index=True)
+    requester_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    message: Mapped[str] = mapped_column(Text, default="")
+    requested_role: Mapped[WorldRole] = mapped_column(Enum(WorldRole, name="world_role"), default=WorldRole.participant)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    reviewer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        Index("world_join_request_pending_unique", "world_id", "requester_id", unique=True, postgresql_where=(status == "pending")),
+    )
+
+
 class CanvasDocument(Base):
     __tablename__ = "canvas_documents"
     world_id: Mapped[str] = mapped_column(ForeignKey("worlds.id", ondelete="CASCADE"), primary_key=True)
@@ -193,4 +225,3 @@ class OutboxEvent(Base):
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-

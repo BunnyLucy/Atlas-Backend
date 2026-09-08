@@ -12,7 +12,8 @@ async def clean_database():
         await connection.execute(text(
             "TRUNCATE outbox_events, audit_events, notifications, wiki_revisions, "
             "world_objects, canvas_revisions, canvas_documents, world_memberships, worlds, "
-            "refresh_sessions, auth_tokens, oauth_accounts, user_profiles, users CASCADE"
+            "world_join_requests, world_invitations, refresh_sessions, auth_tokens, "
+            "oauth_accounts, user_profiles, users CASCADE"
         ))
     yield
 
@@ -21,4 +22,3 @@ async def clean_database():
 async def client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
         yield http
-

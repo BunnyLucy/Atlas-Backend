@@ -10,7 +10,7 @@ from sqlalchemy import text
 from .config import get_settings
 from .db import engine
 from .errors import AtlasError
-from .routers import auth, worlds
+from .routers import auth, memberships, worlds
 
 settings = get_settings()
 log = structlog.get_logger()
@@ -48,4 +48,4 @@ async def health() -> dict:
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(worlds.router, prefix="/api/v1")
-
+app.include_router(memberships.router, prefix="/api/v1")

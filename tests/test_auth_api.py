@@ -4,16 +4,17 @@ from atlas_api.db import SessionLocal
 from atlas_api.models import OutboxEvent
 
 
-async def register_and_verify(client):
+async def register_and_verify(client, username="atlas-user", email="user@example.com"):
     response = await client.post("/api/v1/auth/register", json={
-        "username": "atlas-user",
-        "email": "user@example.com",
+        "username": username,
+        "email": email,
         "password": "correct-horse-battery-staple",
         "display_name": "Atlas User",
     })
     assert response.status_code == 201, response.text
     async with SessionLocal() as session:
-        event = await session.scalar(select(OutboxEvent).where(OutboxEvent.kind == "email.verify"))
+        events = (await session.scalars(select(OutboxEvent).where(OutboxEvent.kind == "email.verify").order_by(OutboxEvent.created_at.desc()))).all()
+        event = next(item for item in events if item.payload["email"] == email)
         assert event
         token = event.payload["token"]
     verified = await client.post("/api/v1/auth/verify-email", json={"token": token})
@@ -49,4 +50,3 @@ async def test_login_uses_uniform_error(client) -> None:
     })
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "LOGIN_FAILED"
-
