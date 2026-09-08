@@ -185,6 +185,109 @@ class WikiRevision(Base):
     )
 
 
+class CharacterProfile(Base):
+    __tablename__ = "character_profiles"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    world_id: Mapped[str] = mapped_column(ForeignKey("worlds.id", ondelete="CASCADE"), index=True)
+    object_id: Mapped[str] = mapped_column(String(100))
+    owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    interaction_policy: Mapped[str] = mapped_column(String(24), default="review")
+    custom_fields: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    __table_args__ = (UniqueConstraint("world_id", "object_id"),)
+
+
+class WorldTask(Base):
+    __tablename__ = "world_tasks"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    world_id: Mapped[str] = mapped_column(ForeignKey("worlds.id", ondelete="CASCADE"), index=True)
+    creator_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    title: Mapped[str] = mapped_column(String(200))
+    summary: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+    capacity: Mapped[int | None] = mapped_column(Integer)
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    object_ids: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class TaskParticipant(Base):
+    __tablename__ = "task_participants"
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("world_tasks.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Submission(Base):
+    __tablename__ = "submissions"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    world_id: Mapped[str] = mapped_column(ForeignKey("worlds.id", ondelete="CASCADE"), index=True)
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("world_tasks.id", ondelete="SET NULL"))
+    author_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text, default="")
+    state: Mapped[str] = mapped_column(String(32), default="draft", index=True)
+    destination: Mapped[str] = mapped_column(String(80), default="Wiki")
+    wiki_change_kind: Mapped[str] = mapped_column(String(32), default="newEntry")
+    target_object_id: Mapped[str | None] = mapped_column(String(100))
+    affected_object_ids: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SubmissionConfirmation(Base):
+    __tablename__ = "submission_confirmations"
+    submission_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("submissions.id", ondelete="CASCADE"), primary_key=True)
+    confirmer_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    character_profile_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("character_profiles.id"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    comment: Mapped[str] = mapped_column(Text, default="")
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SubmissionReview(Base):
+    __tablename__ = "submission_reviews"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    submission_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("submissions.id", ondelete="CASCADE"), index=True)
+    reviewer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    decision: Mapped[str] = mapped_column(String(24))
+    comment: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContributionEvent(Base):
+    __tablename__ = "contribution_events"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    world_id: Mapped[str] = mapped_column(ForeignKey("worlds.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    module: Mapped[str] = mapped_column(String(32), index=True)
+    target_id: Mapped[str] = mapped_column(String(160), index=True)
+    sequence_for_target: Mapped[int] = mapped_column(Integer, default=1)
+    scale_points: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    completion_points: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    specialty_points: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    bonus_points: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    is_polished: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_seasonal: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_voided: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_type: Mapped[str] = mapped_column(String(80))
+    source_id: Mapped[str] = mapped_column(String(160))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint("source_type", "source_id", "user_id"),)
+
+
 class Notification(Base):
     __tablename__ = "notifications"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
