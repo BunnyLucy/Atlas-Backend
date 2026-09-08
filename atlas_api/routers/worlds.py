@@ -50,6 +50,8 @@ async def create_world(body: WorldCreate, user: User = Depends(current_user), se
         raise AtlasError(409, "WORLD_EXISTS", "企划 ID 或 slug 已存在")
     world = World(owner_id=user.id, **body.model_dump())
     session.add(world)
+    # Establish the FK target before membership and audit rows are flushed.
+    await session.flush()
     session.add(WorldMembership(world_id=world.id, user_id=user.id, role=WorldRole.owner))
     session.add(AuditEvent(actor_id=user.id, world_id=world.id, action="world.created", target_type="world", target_id=world.id))
     await session.commit()
@@ -176,4 +178,3 @@ async def put_wiki_object(object_id: str, body: WikiPut, access: WorldAccess = D
 async def wiki_revisions(object_id: str, access: WorldAccess = Depends(world_access), session: AsyncSession = Depends(get_session)) -> dict:
     revisions = (await session.scalars(select(WikiRevision).where(WikiRevision.world_id == access.world.id, WikiRevision.object_id == object_id).order_by(WikiRevision.revision.desc()))).all()
     return {"items": [{"id": str(item.id), "revision": item.revision, "title": item.title, "payload": item.payload, "authorID": str(item.author_id), "createdAt": item.created_at.isoformat()} for item in revisions]}
-
