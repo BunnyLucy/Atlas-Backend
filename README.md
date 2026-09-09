@@ -48,4 +48,5 @@ python scripts/bootstrap_admin.py
 sudo ./scripts/deploy-shadow.sh
 ```
 
-该脚本不会切换现有 `/api/*` 正式流量。
+该脚本不会切换现有 `/api/*` 正式流量。Caddy 将 `/shadow/*` 去除前缀后转发到
+`atlas-python-api-1:8790`，因此影子健康检查为 `/shadow/health`，正式健康检查仍为 `/health`。
