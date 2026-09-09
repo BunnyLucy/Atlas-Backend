@@ -1,0 +1,19 @@
+[Unit]
+Description=Atlas Python API
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=atlas-python
+Group=atlas-python
+WorkingDirectory=/opt/atlas-python
+EnvironmentFile=/opt/atlas-python/shared/.env.production
+ExecStart=/opt/atlas-python/.venv/bin/uvicorn atlas_api.main:app --host ${ATLAS_API_HOST} --port 8790
+Restart=always
+RestartSec=3
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

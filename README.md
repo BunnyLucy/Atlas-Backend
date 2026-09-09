@@ -50,3 +50,14 @@ sudo ./scripts/deploy-shadow.sh
 
 该脚本不会切换现有 `/api/*` 正式流量。Caddy 将 `/shadow/*` 去除前缀后转发到
 `atlas-python-api-1:8790`，因此影子健康检查为 `/shadow/health`，正式健康检查仍为 `/health`。
+
+### 推荐：无 Docker 的 systemd 发布
+
+同事从仓库根目录执行一个文件即可（SSH 是脚本使用的连接方式）：
+
+```bash
+./scripts/deploy-systemd-remote.sh ubuntu@119.91.65.80 /path/to/atlas_deploy_key.pem
+```
+
+首次执行会安装原生 PostgreSQL 16、由 uv 管理的 Python 3.13，并建立
+`atlas-python-api`、`atlas-python-worker` 两个 systemd 服务；后续执行会复用环境、迁移数据库、重启并健康检查。现有 NestJS Docker 正式栈不受影响。

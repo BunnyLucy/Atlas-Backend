@@ -1,0 +1,19 @@
+[Unit]
+Description=Atlas Python Outbox Worker
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=atlas-python
+Group=atlas-python
+WorkingDirectory=/opt/atlas-python
+EnvironmentFile=/opt/atlas-python/shared/.env.production
+ExecStart=/opt/atlas-python/.venv/bin/python -m atlas_api.worker
+Restart=always
+RestartSec=3
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
