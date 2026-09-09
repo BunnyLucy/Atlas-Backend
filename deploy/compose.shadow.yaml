@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: atlas_python
+      POSTGRES_USER: atlas_python
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas_python -d atlas_python"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build: ..
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: &app_environment
+      ATLAS_ENV: production
+      ATLAS_DATABASE_URL: postgresql+asyncpg://atlas_python:${POSTGRES_PASSWORD}@postgres:5432/atlas_python
+      ATLAS_JWT_SECRET: ${ATLAS_JWT_SECRET}
+      ATLAS_WEB_ORIGIN: ${ATLAS_WEB_ORIGIN}
+      ATLAS_COOKIE_SECURE: "true"
+    command: ["sh", "-c", "alembic upgrade head && uvicorn atlas_api.main:app --host 0.0.0.0 --port 8790"]
+    expose: ["8790"]
+    ports: ["127.0.0.1:8790:8790"]
+    networks: [default, atlas_public]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8790/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  worker:
+    build: ..
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: *app_environment
+    command: ["sh", "-c", "alembic upgrade head && python -m atlas_api.worker"]
+
+volumes:
+  postgres_data:
+
+networks:
+  atlas_public:
+    external: true
+    name: atlas_default

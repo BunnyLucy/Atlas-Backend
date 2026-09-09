@@ -39,3 +39,13 @@ python scripts/bootstrap_admin.py
 - Canvas 与 Wiki 共享世界对象，并使用 revision 乐观锁；冲突返回 HTTP 409。
 - 产品不提供用户私信，只提供业务通知与待确认事项。
 - Redis、多人实时协作、链上认证和完整 AI Agent 不属于首发范围。
+
+## 腾讯云影子环境
+
+`deploy/compose.shadow.yaml` 使用独立数据库卷运行 API 与 outbox worker，并仅通过 `atlas_default` 网络与现有 Caddy 连接。服务器准备好 `shared/.env.production` 后执行：
+
+```bash
+sudo ./scripts/deploy-shadow.sh
+```
+
+该脚本不会切换现有 `/api/*` 正式流量。
